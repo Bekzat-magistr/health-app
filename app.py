@@ -13,7 +13,7 @@ import streamlit as st
 
 # --- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (НОВЫЙ СПОСОБ - ЧЕРЕЗ ССЫЛКУ) ---
 # Вставьте сюда строку, которую скопировали, и ВПИШИТЕ ПАРОЛЬ вместо [YOUR-PASSWORD]
-DATABASE_URL = "postgresql://postgres:Halamadrid2025@db.ohxmtufigupkmndhznin.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql://postgres:Halamadrid2025@db.ohxmtufigupkmndhznin.supabase.co:6543/postgres"
 
 # 1. Функция подключения
 def get_connection():
