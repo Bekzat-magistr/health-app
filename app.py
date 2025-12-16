@@ -441,52 +441,42 @@ def student_interface():
         phys_activity = st.slider("Физ. активность (мин/день)", 0, 120, 45, help="Сколько минут в день вы активно двигаетесь?")
         steps = st.number_input("Шагов в день", 0, 30000, 6000, step=500)
 
-    with col2:
+   with col2:
         sys_bp = st.number_input(t['sys_bp'], 80, 200, 120)
         dia_bp = st.number_input(t['dia_bp'], 50, 130, 80)
         
-        # --- НОВЫЙ БЛОК: ВЫБОР ИСТОЧНИКА ПУЛЬСА ---
+        # --- БЛОК IOT (С ДАТЧИКА) ---
         st.write("❤️ **Пульс (Heart Rate)**")
-        pulse_mode = st.radio("Источник данных:", ["Вручную / Manual", "С датчика (IoT)"], horizontal=True, label_visibility="collapsed")
+        pulse_mode = st.radio("Источник:", ["Вручную", "С датчика (IoT)"], horizontal=True, label_visibility="collapsed")
         
         if "Вручную" in pulse_mode:
-            # Обычный ввод
-            pulse = st.number_input("Введите пульс", 40, 180, 72, label_visibility="collapsed")
+            pulse = st.number_input("Пульс", 40, 180, 72, label_visibility="collapsed")
         else:
-            # Получение с датчика
-            st.info("Ожидание данных с устройства...")
-            
-            # Кнопка обновления, чтобы не перезагружать всю страницу
-            if st.button("🔄 Получить измерение"):
+            st.info("Нажмите, чтобы получить данные:")
+            if st.button("🔄 Получить пульс"):
                 try:
-                    # Берем САМУЮ ПОСЛЕДНЮЮ запись из таблицы live_pulse
                     response = supabase.table("live_pulse").select("*").order("created_at", desc=True).limit(1).execute()
-                    
-                    if response.data and len(response.data) > 0:
+                    if response.data:
                         sensor_val = response.data[0]['pulse']
-                        # Показываем красивую цифру
-                        st.metric("Измерено датчиком:", f"{sensor_val} уд/мин")
-                        pulse = sensor_val # Записываем в переменную для отправки
-                        
-                        # Сохраняем во временное хранилище, чтобы при нажатии "Анализ" цифра не слетела
                         st.session_state['sensor_pulse'] = sensor_val
+                        st.success(f"Получено: {sensor_val} уд/мин")
                     else:
-                        st.warning("Датчик молчит. Проверьте Wi-Fi на устройстве.")
-                        pulse = 72 # Дефолт, если не нашли
-                except Exception as e:
-                    st.error("Ошибка связи")
-                    pulse = 72
-            else:
-                # Если кнопка не нажата, берем сохраненное или дефолт
-                pulse = st.session_state.get('sensor_pulse', 72)
-                if 'sensor_pulse' in st.session_state:
-                     st.metric("Последнее измерение:", f"{pulse} уд/мин")
-        
-        # ------------------------------------------
+                        st.warning("Нет данных")
+                except:
+                    st.error("Ошибка сети")
+            
+            pulse = st.session_state.get('sensor_pulse', 72)
+            st.metric("Текущий пульс:", f"{pulse}")
+        # ---------------------------
 
         sleep_dur = st.slider(t['sleep'], 4.0, 12.0, 7.0, 0.5)
         sleep_qual = st.slider("Качество сна (1-10)", 1, 10, 6)
         stress = st.slider(t['stress'], 1, 10, 5)
+
+    # --- ВАЖНО: РАСЧЕТ BMI ДОЛЖЕН БЫТЬ ЗДЕСЬ (ДО КНОПКИ) ---
+    bmi_val = round(weight / ((height / 100) ** 2), 2)
+    st.caption(f"Ваш BMI: {bmi_val}")
+    st.divider()
 
     # --- ГЛАВНАЯ КНОПКА ---
     if st.button("🧠 Запустить анализ (AI)", type="primary"):
@@ -830,5 +820,6 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
