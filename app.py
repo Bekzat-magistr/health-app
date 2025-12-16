@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import random
 import time
+import hashlib
 
 
 import psycopg2
@@ -13,8 +14,7 @@ import streamlit as st
 
 # --- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (НОВЫЙ СПОСОБ - ЧЕРЕЗ ССЫЛКУ) ---
 # Вставьте сюда строку, которую скопировали, и ВПИШИТЕ ПАРОЛЬ вместо [YOUR-PASSWORD]
-# Обновленная ссылка через Pooler (решает проблему с ошибкой сети)
-DATABASE_URL = "postgresql://postgres.ohxmtufigupkmndhznin:Halamadrid2025@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres:Halamadrid2025@db.ohxmtufigupkmndhznin.supabase.co:6543/postgres"
 
 # 1. Функция подключения
 def get_connection():
@@ -54,6 +54,13 @@ def init_db():
     phys_activity INTEGER,
     steps INTEGER,
     ai_verdict TEXT
+   );
+  ''')
+  cur.execute('''
+   CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL
    );
   ''')
   conn.commit()
@@ -210,7 +217,17 @@ translations = {
         # Статусы
         "status_norm": "Қалыпты",
         "status_warning": "Назар аударыңыз",
-        "status_risk": "Қауіпті (Risk)"
+        "status_risk": "Қауіпті (Risk)",
+        "reg_title": "Тіркелу",
+        "login_tab": "Кіру",
+        "reg_tab": "Тіркелу",
+        "reg_btn": "Тіркелу",
+        "auth_error": "Қате логин немесе пароль",
+        "reg_success": "Тіркелу сәтті өтті! Енді кіріңіз.",
+        "reg_exists": "Бұл логин бос емес.",
+
+
+        
     },
     "Русский": {
         # Общее
@@ -262,7 +279,14 @@ translations = {
         # Статусы
         "status_norm": "Норма",
         "status_warning": "Требует внимания",
-        "status_risk": "Риск (Risk)"
+        "status_risk": "Риск (Risk)",
+        "reg_title": "Регистрация",
+        "login_tab": "Вход",
+        "reg_tab": "Регистрация",
+        "reg_btn": "Зарегистрироваться",
+        "auth_error": "Неверный логин или пароль",
+        "reg_success": "Регистрация успешна! Теперь войдите.",
+        "reg_exists": "Такой пользователь уже существует.",
     }
 }
 
@@ -655,11 +679,56 @@ def curator_interface():
         st.info("У вас пока нет данных от студентов.")
 
 
+
+# --- НОВЫЕ ФУНКЦИИ ДЛЯ АВТОРИЗАЦИИ ---
+
+def make_hash(password):
+    """Шифрует пароль"""
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    """Проверяет пароль"""
+    if make_hash(password) == hashed_text:
+        return True
+    return False
+
+def add_user(username, password, role):
+    """Регистрация нового пользователя в Supabase"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        hashed_pass = make_hash(password)
+        
+        cur.execute('INSERT INTO users (username, password, role) VALUES (%s, %s, %s)', 
+                    (username, hashed_pass, role))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        # Скорее всего такой юзер уже есть
+        return False
+
+def login_user(username, password):
+    """Проверка входа через Supabase"""
+    conn = get_connection()
+    cur = conn.cursor()
+    
+    cur.execute('SELECT password, role FROM users WHERE username = %s', (username,))
+    data = cur.fetchone()
+    
+    conn.close()
+    
+    if data:
+        stored_password, role = data
+        if check_hashes(password, stored_password):
+            return role
+    return None
   
 
 # --- СТРАНИЦА ЛОГИНА ---
+# --- СТРАНИЦА ЛОГИНА (ОБНОВЛЕННАЯ) ---
 def login_page():
-    # Флаги
     c1, c2, c3 = st.columns([8, 1, 1])
     with c2: 
         if st.button("🇰🇿"): set_language('Қазақша'); st.rerun()
@@ -667,21 +736,45 @@ def login_page():
         if st.button("🇷🇺"): set_language('Русский'); st.rerun()
 
     st.title("🏥 Health System KZ")
-    st.subheader(t['login_title'])
     
-    with st.form("auth"):
-        role = st.radio(t['role_label'], [t['role_student'], t['role_curator']])
-        user = st.text_input("Login (Name)")
-        pas = st.text_input("Password", type="password")
+    # Создаем вкладки: Вход и Регистрация
+    tab1, tab2 = st.tabs([t.get('login_tab', 'Login'), t.get('reg_tab', 'Register')])
+
+    # --- Вкладка 1: ВХОД ---
+    with tab1:
+        st.subheader(t['login_title'])
+        user = st.text_input("Login (Name)", key="l_user")
+        pas = st.text_input("Password", type="password", key="l_pass")
         
-        if st.form_submit_button(t['login_btn']):
-            if user:
+        if st.button(t['login_btn']):
+            # Проверяем через Supabase
+            role = login_user(user, pas)
+            if role:
                 st.session_state['logged_in'] = True
                 st.session_state['user_role'] = role
                 st.session_state['username'] = user
                 st.rerun()
             else:
-                st.error("Login required")
+                st.error(t.get('auth_error', 'Error'))
+
+    # --- Вкладка 2: РЕГИСТРАЦИЯ ---
+    with tab2:
+        st.subheader(t.get('reg_title', 'Registration'))
+        # Выбор роли при регистрации
+        new_role = st.radio(t['role_label'], [t['role_student'], t['role_curator']], key="r_role")
+        new_user = st.text_input("New Login", key="r_user")
+        new_pas = st.text_input("New Password", type="password", key="r_pass")
+        
+        if st.button(t.get('reg_btn', 'Register')):
+            if len(new_user) > 0 and len(new_pas) > 0:
+                # Сохраняем в Supabase
+                success = add_user(new_user, new_pas, new_role)
+                if success:
+                    st.success(t.get('reg_success', 'Success!'))
+                else:
+                    st.error(t.get('reg_exists', 'User exists'))
+            else:
+                st.warning("Введите логин и пароль")
 
 # --- MAIN ---
 if not st.session_state['logged_in']:
@@ -707,5 +800,4 @@ else:
     if st.session_state['user_role'] == t['role_student']:
         student_interface()
     elif st.session_state['user_role'] == t['role_curator']:
-
         curator_interface()
