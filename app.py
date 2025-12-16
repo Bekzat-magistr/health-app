@@ -399,6 +399,7 @@ except Exception as e:
 
 
 # --- ИНТЕРФЕЙС СТУДЕНТА ---
+# --- ИНТЕРФЕЙС СТУДЕНТА (ПОЛНЫЙ И ИСПРАВЛЕННЫЙ) ---
 def student_interface():
     st.title(f"👤 {t['st_title']}")
     st.write(t['st_instr'])
@@ -441,39 +442,53 @@ def student_interface():
         phys_activity = st.slider("Физ. активность (мин/день)", 0, 120, 45, help="Сколько минут в день вы активно двигаетесь?")
         steps = st.number_input("Шагов в день", 0, 30000, 6000, step=500)
 
-   with col2:
+    with col2:
         sys_bp = st.number_input(t['sys_bp'], 80, 200, 120)
         dia_bp = st.number_input(t['dia_bp'], 50, 130, 80)
         
-        # --- БЛОК IOT (С ДАТЧИКА) ---
+        # --- БЛОК IOT: ВЫБОР ИСТОЧНИКА ПУЛЬСА ---
         st.write("❤️ **Пульс (Heart Rate)**")
-        pulse_mode = st.radio("Источник:", ["Вручную", "С датчика (IoT)"], horizontal=True, label_visibility="collapsed")
+        pulse_mode = st.radio("Источник данных:", ["Вручную / Manual", "С датчика (IoT)"], horizontal=True, label_visibility="collapsed")
         
         if "Вручную" in pulse_mode:
-            pulse = st.number_input("Пульс", 40, 180, 72, label_visibility="collapsed")
+            # Обычный ввод
+            pulse = st.number_input("Введите пульс", 40, 180, 72, label_visibility="collapsed")
         else:
-            st.info("Нажмите, чтобы получить данные:")
-            if st.button("🔄 Получить пульс"):
-                try:
-                    response = supabase.table("live_pulse").select("*").order("created_at", desc=True).limit(1).execute()
-                    if response.data:
-                        sensor_val = response.data[0]['pulse']
-                        st.session_state['sensor_pulse'] = sensor_val
-                        st.success(f"Получено: {sensor_val} уд/мин")
-                    else:
-                        st.warning("Нет данных")
-                except:
-                    st.error("Ошибка сети")
+            # Получение с датчика
+            st.info("Ожидание данных с устройства...")
             
-            pulse = st.session_state.get('sensor_pulse', 72)
-            st.metric("Текущий пульс:", f"{pulse}")
-        # ---------------------------
+            # Кнопка обновления, чтобы не перезагружать всю страницу
+            if st.button("🔄 Получить измерение"):
+                try:
+                    # Берем САМУЮ ПОСЛЕДНЮЮ запись из таблицы live_pulse
+                    response = supabase.table("live_pulse").select("*").order("created_at", desc=True).limit(1).execute()
+                    
+                    if response.data and len(response.data) > 0:
+                        sensor_val = response.data[0]['pulse']
+                        # Показываем красивую цифру
+                        st.metric("Измерено датчиком:", f"{sensor_val} уд/мин")
+                        pulse = sensor_val # Записываем в переменную для отправки
+                        
+                        # Сохраняем во временное хранилище
+                        st.session_state['sensor_pulse'] = sensor_val
+                    else:
+                        st.warning("Датчик молчит. Проверьте Wi-Fi на устройстве.")
+                        pulse = 72 # Дефолт, если не нашли
+                except Exception as e:
+                    st.error("Ошибка связи")
+                    pulse = 72
+            else:
+                # Если кнопка не нажата, берем сохраненное или дефолт
+                pulse = st.session_state.get('sensor_pulse', 72)
+                st.metric("Последнее измерение:", f"{pulse} уд/мин")
+        
+        # ------------------------------------------
 
         sleep_dur = st.slider(t['sleep'], 4.0, 12.0, 7.0, 0.5)
         sleep_qual = st.slider("Качество сна (1-10)", 1, 10, 6)
         stress = st.slider(t['stress'], 1, 10, 5)
 
-    # --- ВАЖНО: РАСЧЕТ BMI ДОЛЖЕН БЫТЬ ЗДЕСЬ (ДО КНОПКИ) ---
+    # --- ВАЖНО: РАСЧЕТ BMI ДОЛЖЕН БЫТЬ ЗДЕСЬ (ПЕРЕД КНОПКОЙ) ---
     bmi_val = round(weight / ((height / 100) ** 2), 2)
     st.caption(f"Ваш BMI: {bmi_val}")
     st.divider()
@@ -485,21 +500,17 @@ def student_interface():
         # 1. Кодируем пол (Man=1, Woman=0 - как при обучении)
         gender_code = 1 if "Man" in gender_str or "Ер" in gender_str else 0
         
-        # 2. Кодируем BMI (Normal=0, Overweight=1, Obese=2)
-        # ВАЖНО: Эти границы должны совпадать с вашей логикой обучения
+        # 2. Кодируем BMI. ТЕПЕРЬ bmi_val ТОЧНО СУЩЕСТВУЕТ
         if bmi_val < 25: bmi_code = 0
         elif bmi_val < 30: bmi_code = 1
         else: bmi_code = 2
 
         # Б. ПРЕДСКАЗАНИЕ
         ai_verdict = "Неизвестно"
-        prediction_text = ""
+        final_color = "info"
         
         if model_loaded:
-            # СТРОГИЙ ПОРЯДОК (как в df.columns при обучении):
-            # ['Age', 'Sleep Duration', 'Quality of Sleep', 'Physical Activity Level', 
-            # 'Stress Level', 'Heart Rate', 'Daily Steps', 'BP_Systolic', 'BP_Diastolic', 'Gender_Code', 'BMI_Code']
-            
+            # СТРОГИЙ ПОРЯДОК:
             features = np.array([[
                 age, 
                 sleep_dur, 
@@ -514,7 +525,6 @@ def student_interface():
                 bmi_code
             ]])
             
-# ... (код предсказания выше) ...
             prediction = ml_model.predict(features)[0]
             
             # --- БЛОК 1: Базовый вердикт ИИ ---
@@ -532,36 +542,26 @@ def student_interface():
                 final_color = "info"
 
             # --- БЛОК 2: ГИБРИДНАЯ КОРРЕКЦИЯ (Safety Layer) ---
-            # Если ИИ ошибся и не заметил явных проблем, мы его поправляем вручную.
-            # Это научно обоснованный подход (Expert Systems + ML).
-            
             check_messages = []
             
-            # Правило А: Критический стресс
             if stress >= 8 and final_color == "success":
                 ai_verdict = "Риск: Высокий уровень стресса (скрытая угроза) ⚠️"
                 final_color = "warning"
                 check_messages.append("Несмотря на хорошие физические показатели, уровень стресса критический.")
 
-            # Правило Б: Очень плохой сон
             if sleep_qual <= 3 and final_color == "success":
                 ai_verdict = "Риск: Низкое качество сна ⚠️"
                 final_color = "warning"
                 check_messages.append("Ваше качество сна вызывает опасения.")
 
-            # Правило В: Ожирение + Храп (если бы был параметр храпа, но можно по BMI)
             if bmi_val > 30 and final_color == "success":
                 check_messages.append("Обратите внимание на вес, это фактор риска для Апноэ.")
 
         else:
             st.error("Ошибка модели...")
             
-        # ... (Сохранение в базу) ...
-        # ... (Код выше с предсказанием ML остается прежним) ...
-
-        # В. Сохранение в базу (ОБНОВЛЕННЫЙ БЛОК)
+        # В. Сохранение в базу
         if curator_val:
-            # Формируем полный пакет данных
             full_data = {
                 'name': name_val,
                 'curator': curator_val,
@@ -570,7 +570,7 @@ def student_interface():
                 'spec': spec_val,
                 'bmi': bmi_val,
                 'stress': stress,
-                'status': final_color, # 'success', 'warning' или 'error'
+                'status': final_color,
                 'gender': gender_str,
                 'age': age,
                 'height': height,
@@ -586,12 +586,11 @@ def student_interface():
             }
             
             save_student_form(full_data)
-            
             st.toast(f"Полная медкарта отправлена куратору {curator_val}!", icon="✅")
         else:
             st.warning("Куратор не указан — данные не сохранены.")
         
-        # --- ОТОБРАЖЕНИЕ (Чуть обновим вывод сообщений) ---
+        # --- ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ ---
         st.divider()
         st.subheader("Результат диагностики ИИ:")
         
@@ -603,27 +602,21 @@ def student_interface():
         else:
             st.error(f"## {ai_verdict}")
             
-        # Вывод дополнительных пояснений от экспертной системы
         if check_messages:
             for msg in check_messages:
                 st.info(f"ℹ️ {msg}")
         
-
+        # --- БЛОК ИСТОРИИ ---
         st.divider()
         st.subheader("📜 История ваших проверок")
         
-        # Загружаем всё, что относится к этому студенту
         my_history_df = get_all_data(student_name=st.session_state['username'])
         
         if not my_history_df.empty:
-            # Показываем таблицу, но скрываем лишние технические колонки
             cols_to_show = ["Дата/Время", "ai_verdict", "BMI", "Stress", "sleep_qual", "steps"]
-            # Проверяем, есть ли колонки (чтобы не было ошибки)
             available_cols = [c for c in cols_to_show if c in my_history_df.columns]
             
             st.dataframe(my_history_df[available_cols], use_container_width=True)
-            
-            # Можно даже график динамики стресса построить!
             st.line_chart(my_history_df.set_index("Дата/Время")["Stress"])
         else:
             st.info("История пуста. Пройдите первый анализ.")
@@ -820,6 +813,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
