@@ -14,7 +14,7 @@ import streamlit as st
 
 # --- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (НОВЫЙ СПОСОБ - ЧЕРЕЗ ССЫЛКУ) ---
 # Вставьте сюда строку, которую скопировали, и ВПИШИТЕ ПАРОЛЬ вместо [YOUR-PASSWORD]
-DATABASE_URL = "postgresql://postgres:Halamadrid2025@db.ohxmtufigupkmndhznin.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql://postgres.ohxmtufigupkmndhznin:Halamadrid2025@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 # 1. Функция подключения
 def get_connection():
@@ -802,3 +802,4 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
