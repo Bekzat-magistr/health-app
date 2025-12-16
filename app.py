@@ -454,33 +454,54 @@ def student_interface():
             # Обычный ввод
             pulse = st.number_input("Введите пульс", 40, 180, 72, label_visibility="collapsed")
         else:
-            # Получение с датчика
-            st.info("Ожидание данных с устройства...")
+            # === РЕЖИМ РАБОТЫ С ДАТЧИКОМ ===
+            st.info("Режим работы с оборудованием")
             
-            # Кнопка обновления, чтобы не перезагружать всю страницу
-            if st.button("🔄 Получить измерение"):
+            col_iot1, col_iot2 = st.columns([1, 1])
+            
+            # 1. Кнопка одиночного замера
+            with col_iot1:
+                if st.button("🔄 Взять пульс"):
+                    try:
+                        response = supabase.table("live_pulse").select("*").order("created_at", desc=True).limit(1).execute()
+                        if response.data:
+                            sensor_val = response.data[0]['pulse']
+                            st.session_state['sensor_pulse'] = sensor_val
+                            st.toast(f"Получено: {sensor_val}", icon="❤️")
+                    except:
+                        st.error("Ошибка связи")
+            
+            # 2. Чекбокс для графика
+            with col_iot2:
+                live_mode = st.checkbox("📈 Живой график")
+
+            # Отображение цифры
+            pulse = st.session_state.get('sensor_pulse', 72)
+            st.metric("Значение пульса:", f"{pulse} уд/мин")
+
+            # 3. Логика отрисовки графика (Только если нажата галочка)
+            if live_mode:
+                st.caption("График обновляется каждые 2 секунды...")
+                
                 try:
-                    # Берем САМУЮ ПОСЛЕДНЮЮ запись из таблицы live_pulse
-                    response = supabase.table("live_pulse").select("*").order("created_at", desc=True).limit(1).execute()
+                    # Скачиваем последние 20 точек
+                    resp = supabase.table("live_pulse").select("created_at, pulse").order("created_at", desc=True).limit(20).execute()
                     
-                    if response.data and len(response.data) > 0:
-                        sensor_val = response.data[0]['pulse']
-                        # Показываем красивую цифру
-                        st.metric("Измерено датчиком:", f"{sensor_val} уд/мин")
-                        pulse = sensor_val # Записываем в переменную для отправки
+                    if resp.data:
+                        df_pulse = pd.DataFrame(resp.data)
+                        # Сортируем по времени (слева направо)
+                        df_pulse = df_pulse.sort_values(by="created_at")
                         
-                        # Сохраняем во временное хранилище
-                        st.session_state['sensor_pulse'] = sensor_val
+                        # Рисуем
+                        st.line_chart(df_pulse.set_index("created_at")["pulse"])
+                        
+                        # Пауза и перезагрузка страницы для эффекта "Live"
+                        time.sleep(2)
+                        st.rerun()
                     else:
-                        st.warning("Датчик молчит. Проверьте Wi-Fi на устройстве.")
-                        pulse = 72 # Дефолт, если не нашли
+                        st.warning("База данных пуста.")
                 except Exception as e:
-                    st.error("Ошибка связи")
-                    pulse = 72
-            else:
-                # Если кнопка не нажата, берем сохраненное или дефолт
-                pulse = st.session_state.get('sensor_pulse', 72)
-                st.metric("Последнее измерение:", f"{pulse} уд/мин")
+                    st.error(f"Ошибка графика: {e}")
         
         # ------------------------------------------
 
@@ -813,6 +834,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
