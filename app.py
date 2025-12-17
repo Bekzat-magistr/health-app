@@ -12,6 +12,27 @@ import pandas as pd
 from datetime import datetime
 import streamlit as st
 
+import streamlit as st
+import pandas as pd
+import time
+from supabase import create_client, Client
+
+# --- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (Вставь это в начало файла) ---
+
+# 1. Твоя ссылка (Я взял её из твоего скриншота)
+SUPABASE_URL = "https://ohxmtufigupkmndhznin.supabase.co"
+
+# 2. Твой ключ (Вставь сюда тот самый длинный anon public key)
+SUPABASE_KEY = "sb_publishable_w5Jng47FBlpgfmxBwCl5AQ_wq2fp5tf"
+
+# 3. Создаем подключение (Самая важная строка!)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    st.error(f"Ошибка подключения к базе: {e}")
+
+# ---------------------------------------------------------
+
 # --- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ (НОВЫЙ СПОСОБ - ЧЕРЕЗ ССЫЛКУ) ---
 # Вставьте сюда строку, которую скопировали, и ВПИШИТЕ ПАРОЛЬ вместо [YOUR-PASSWORD]
 DATABASE_URL = "postgresql://postgres.ohxmtufigupkmndhznin:Halamadrid2025@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
@@ -834,6 +855,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
