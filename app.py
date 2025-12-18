@@ -675,7 +675,7 @@ def student_interface():
                 current_time = time.time()
                 last_sent = st.session_state.get('last_tg_alert', 0)
                 
-                if current_time - last_sent > 300: # 300 секунд = 5 минут
+                if current_time - last_sent > 10: # 300 секунд = 5 минут
                     
                     # 3. Твой текст (СОХРАНИЛИ КАК БЫЛО)
                     alert_msg = (
@@ -954,6 +954,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
