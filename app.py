@@ -37,8 +37,8 @@ with st.sidebar.expander("👨‍🏫 Вход для Кураторов"):
     
     # 1. Генерируем QR-код на твоего бота
     # Замени 'Bekzat_Diplom_Bot' на имя твоего бота (без @)
-    bot_username = "Bekzat_Diplom_Bot" 
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://t.me/{bot_username}?start=subscribe"
+    bot_username = "student_health_bot" 
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://t.me/student_health_bot?start=subscribe"
     
     st.image(qr_url, caption="Сканируйте, чтобы запустить бота")
     st.info("1. Сканируйте QR\n2. Нажмите Start\n3. Узнайте свой ID через @userinfobot")
@@ -954,6 +954,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
