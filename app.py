@@ -5,7 +5,7 @@ import pandas as pd
 import random
 import time
 import hashlib
-
+import requests
 
 import psycopg2
 import pandas as pd
@@ -30,6 +30,20 @@ try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
     st.error(f"Ошибка подключения к базе: {e}")
+
+
+def send_telegram_alert(message):
+    # ЗАПОЛНИ СВОИ ДАННЫЕ НИЖЕ
+    bot_token = "7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM"
+    chat_id = "916301246" 
+
+    url = f"https://api.telegram.org/bot7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM/sendMessage"
+    payload = {"chat_id": chat_id, "916301246": message}
+
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        st.error(f"Ошибка отправки уведомления: {e}")
 
 # ---------------------------------------------------------
 
@@ -599,6 +613,38 @@ def student_interface():
             if bmi_val > 30 and final_color == "success":
                 check_messages.append("Обратите внимание на вес, это фактор риска для Апноэ.")
 
+
+        # Мы отправляем уведомление, ТОЛЬКО если цвет НЕ зеленый (warning или error)
+            if final_color in ["warning", "error"]:
+                
+                # Защита от спама (чтобы не слать чаще чем раз в 5 минут)
+                import time
+                current_time = time.time()
+                last_sent = st.session_state.get('last_tg_alert', 0)
+                
+                if current_time - last_sent > 300: # 300 секунд = 5 минут
+                    
+                    # Формируем красивое сообщение
+                    alert_msg = (
+                        f"🚨 ВНИМАНИЕ! ПЛОХОЙ ПРОГНОЗ!\n"
+                        f"👤 Студент: {name_val}\n"
+                        f"🩺 Вердикт ИИ: {ai_verdict}\n"
+                        f"💓 Пульс: {pulse}\n"
+                        f"🤯 Уровень стресса: {stress}\n"
+                        f"📉 Статус: {final_color.upper()}"
+                    )
+                    
+                    # Отправляем
+                    send_telegram_alert(alert_msg)
+                    
+                    # Обновляем таймер и показываем студенту, что куратор в курсе
+                    st.session_state['last_tg_alert'] = current_time
+                    st.toast("Куратор получил уведомление о риске!", icon="📩")
+            
+            # ================================================================
+            # КОНЕЦ ВСТАВКИ
+            # ================================================================
+
         else:
             st.error("Ошибка модели...")
             
@@ -855,6 +901,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
