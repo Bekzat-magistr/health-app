@@ -62,9 +62,9 @@ with st.sidebar.expander("👨‍🏫 Вход для Кураторов"):
 
 # Передаем chat_id как аргумент функции
 def send_telegram_alert(message, chat_id_to_send):
-    bot_token = "ТВОЙ_ТОКЕН_БОТА" # Токен бота остается жестко прописан
+    bot_token = "7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM" # Токен бота остается жестко прописан
     
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    url = f"https://api.telegram.org/bot7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM/sendMessage"
     payload = {"chat_id": chat_id_to_send, "text": message}
     
     try:
@@ -954,6 +954,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
