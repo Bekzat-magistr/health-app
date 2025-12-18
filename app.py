@@ -698,8 +698,7 @@ def student_interface():
                 # Если риск есть, но куратор не выбран
                 st.warning("⚠️ Обнаружен риск, но куратор не выбран — уведомление не отправлено.")
 
-        else:
-            st.error("Ошибка модели...")
+      
             
         # В. Сохранение в базу
         if curator_val:
@@ -954,6 +953,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
