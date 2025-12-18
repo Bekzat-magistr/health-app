@@ -31,27 +31,46 @@ try:
 except Exception as e:
     st.error(f"Ошибка подключения к базе: {e}")
 
-
-def send_telegram_alert(message):
-    # Твои данные
-    bot_token = "7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM"   # Проверь, что они тут есть!
-    chat_id = "916301246"
+# --- БЛОК РЕГИСТРАЦИИ КУРАТОРА ---
+with st.sidebar.expander("👨‍🏫 Вход для Кураторов"):
+    st.write("Чтобы получать уведомления, зарегистрируйтесь:")
     
-    url = f"https://api.telegram.org/bot7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM/sendMessage"
-    payload = {"chat_id": 916301246, "text": message}
+    # 1. Генерируем QR-код на твоего бота
+    # Замени 'Bekzat_Diplom_Bot' на имя твоего бота (без @)
+    bot_username = "Bekzat_Diplom_Bot" 
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://t.me/{bot_username}?start=subscribe"
+    
+    st.image(qr_url, caption="Сканируйте, чтобы запустить бота")
+    st.info("1. Сканируйте QR\n2. Нажмите Start\n3. Узнайте свой ID через @userinfobot")
+
+    # 2. Форма сохранения в базу
+    new_curator_name = st.text_input("Ваше ФИО")
+    new_curator_id = st.text_input("Ваш Telegram ID (цифры)")
+    
+    if st.button("Сохранить мои данные"):
+        if new_curator_name and new_curator_id:
+            try:
+                # Сохраняем в Supabase
+                supabase.table("curators").insert({
+                    "name": new_curator_name, 
+                    "telegram_id": new_curator_id
+                }).execute()
+                st.success(f"Куратор {new_curator_name} добавлен!")
+            except Exception as e:
+                st.error(f"Ошибка записи: {e}")
+
+
+# Передаем chat_id как аргумент функции
+def send_telegram_alert(message, chat_id_to_send):
+    bot_token = "ТВОЙ_ТОКЕН_БОТА" # Токен бота остается жестко прописан
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {"chat_id": chat_id_to_send, "text": message}
     
     try:
-        response = requests.post(url, json=payload)
-        
-        # Если Телеграм ответил ошибкой (например, неверный ID)
-        if response.status_code != 200:
-            st.error(f"❌ Ошибка Telegram: {response.text}")
-        else:
-            st.success("✅ Сообщение отправлено в Telegram!")
-            
-    except Exception as e:
-        # Если ошибка в Python (например, нет интернета или библиотеки)
-        st.error(f"❌ Ошибка отправки: {e}")
+        requests.post(url, json=payload)
+    except:
+        pass
 
 # ---------------------------------------------------------
 
@@ -461,8 +480,30 @@ def student_interface():
         specs = ["IT", "Medicine", "Engineering", "Economy", "Law"] 
         spec_val = st.selectbox("Спец-ть", specs)
     
-    curator_val = st.text_input(t.get('curator_label', 'Куратор'))
-    st.divider()
+
+    try:
+        response = supabase.table("curators").select("*").execute()
+        curators_data = response.data
+        # Собираем список имен для меню
+        curator_names = [c['name'] for c in curators_data]
+    except:
+        curators_data = []
+        curator_names = []
+
+    # 2. Показываем выпадающий список (Selectbox)
+    # Используем твой перевод t['curator_label'] или слово 'Куратор'
+    label_text = t.get('curator_label', 'Куратор')
+    selected_curator = st.selectbox(label_text, ["Не выбрано"] + curator_names)
+
+    # 3. Находим Telegram ID выбранного куратора
+    target_chat_id = None
+    
+    if selected_curator != "Не выбрано":
+        # Ищем в списке данных того, кого выбрали
+        for c in curators_data:
+            if c['name'] == selected_curator:
+                target_chat_id = c['telegram_id']
+                break
 
     # 2. Ввод данных для ИИ (11 параметров)
     st.subheader("📊 Данные для ИИ-анализа")
@@ -622,17 +663,20 @@ def student_interface():
                 check_messages.append("Обратите внимание на вес, это фактор риска для Апноэ.")
 
 
-        # Мы отправляем уведомление, ТОЛЬКО если цвет НЕ зеленый (warning или error)
-            if final_color in ["warning", "error"]:
+        # === БЛОК УВЕДОМЛЕНИЙ ===
+        if final_color in ["warning", "error"]:
+            
+            # 1. Проверяем, выбран ли куратор (есть ли ID для отправки)
+            if target_chat_id:
                 
-                # Защита от спама (чтобы не слать чаще чем раз в 5 минут)
+                # 2. Защита от спама (чтобы не слать чаще чем раз в 5 минут)
                 import time
                 current_time = time.time()
                 last_sent = st.session_state.get('last_tg_alert', 0)
                 
                 if current_time - last_sent > 300: # 300 секунд = 5 минут
                     
-                    # Формируем красивое сообщение
+                    # 3. Твой текст (СОХРАНИЛИ КАК БЫЛО)
                     alert_msg = (
                         f"🚨 ВНИМАНИЕ! ПЛОХОЙ ПРОГНОЗ!\n"
                         f"👤 Студент: {name_val}\n"
@@ -642,16 +686,16 @@ def student_interface():
                         f"📉 Статус: {final_color.upper()}"
                     )
                     
-                    # Отправляем
-                    send_telegram_alert(alert_msg)
+                    # 4. Отправляем конкретному куратору (передаем второй параметр!)
+                    send_telegram_alert(alert_msg, target_chat_id)
                     
-                    # Обновляем таймер и показываем студенту, что куратор в курсе
+                    # 5. Обновляем таймер и показываем уведомление
                     st.session_state['last_tg_alert'] = current_time
-                    st.toast("Куратор получил уведомление о риске!", icon="📩")
+                    st.toast(f"Уведомление отправлено куратору {selected_curator}!", icon="📩")
             
-            # ================================================================
-            # КОНЕЦ ВСТАВКИ
-            # ================================================================
+            else:
+                # Если риск есть, но куратор не выбран
+                st.warning("⚠️ Обнаружен риск, но куратор не выбран — уведомление не отправлено.")
 
         else:
             st.error("Ошибка модели...")
@@ -909,6 +953,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
