@@ -504,6 +504,7 @@ def student_interface():
             if c['name'] == selected_curator:
                 target_chat_id = c['telegram_id']
                 break
+    curator_val = selected_curator
 
     # 2. Ввод данных для ИИ (11 параметров)
     st.subheader("📊 Данные для ИИ-анализа")
@@ -953,6 +954,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
