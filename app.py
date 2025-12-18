@@ -33,17 +33,25 @@ except Exception as e:
 
 
 def send_telegram_alert(message):
-    # ЗАПОЛНИ СВОИ ДАННЫЕ НИЖЕ
-    bot_token = "7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM"
-    chat_id = "916301246" 
-
+    # Твои данные
+    bot_token = "7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM"   # Проверь, что они тут есть!
+    chat_id = "916301246"
+    
     url = f"https://api.telegram.org/bot7679480370:AAGxBBf-coUHidpZ2799GqFoDBLRA1HVIkM/sendMessage"
-    payload = {"chat_id": chat_id, "916301246": message}
-
+    payload = {"chat_id": 916301246, "text": message}
+    
     try:
-        requests.post(url, json=payload)
+        response = requests.post(url, json=payload)
+        
+        # Если Телеграм ответил ошибкой (например, неверный ID)
+        if response.status_code != 200:
+            st.error(f"❌ Ошибка Telegram: {response.text}")
+        else:
+            st.success("✅ Сообщение отправлено в Telegram!")
+            
     except Exception as e:
-        st.error(f"Ошибка отправки уведомления: {e}")
+        # Если ошибка в Python (например, нет интернета или библиотеки)
+        st.error(f"❌ Ошибка отправки: {e}")
 
 # ---------------------------------------------------------
 
@@ -901,6 +909,7 @@ else:
     elif st.session_state['user_role'] == t['role_curator']:
 
         curator_interface()
+
 
 
 
